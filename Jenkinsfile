@@ -1,40 +1,50 @@
-import groovy.json.JsonSlurper
+pipeline {
+  agent any
 
-def getFtpPublishProfile(def publishProfilesJson) {
-  def pubProfiles = new JsonSlurper().parseText(publishProfilesJson)
-  for (p in pubProfiles)
-    if (p['publishMethod'] == 'FTP')
-      return [url: p.publishUrl, username: p.userName, password: p.userPWD]
-}
+  environment {
+    AZURE_SUBSCRIPTION_ID = '21ecd3ac-e93a-4949-b7a8-ed330e37b660'
+    AZURE_TENANT_ID       = '1f710310-6981-437a-98a4-f51411fe7da8'
+    RESOURCE_GROUP        = 'jenkins-rg-asia'
+    WEBAPP_NAME           = 'jx55731393'
+  }
 
-node {
-  withEnv(['AZURE_SUBSCRIPTION_ID=<subscription_id>',
-        'AZURE_TENANT_ID=<tenant_id>']) {
-    stage('init') {
-      checkout scm
-    }
-  
-    stage('build') {
-      sh 'mvn clean package'
-    }
-  
-    stage('deploy') {
-      def resourceGroup = '<resource_group>'
-      def webAppName = '<app_name>'
-      // login Azure
-      withCredentials([usernamePassword(credentialsId: '<service_princial>', passwordVariable: 'AZURE_CLIENT_SECRET', usernameVariable: 'AZURE_CLIENT_ID')]) {
-       sh '''
-          az login --service-principal -u $AZURE_CLIENT_ID -p $AZURE_CLIENT_SECRET -t $AZURE_TENANT_ID
-          az account set -s $AZURE_SUBSCRIPTION_ID
-        '''
+  stages {
+    stage('Build') {
+      steps {
+        sh 'mvn -v'
+        sh 'mvn clean package -DskipTests'
+        sh 'ls -lh target || true'
       }
-      // get publish settings
-      def pubProfilesJson = sh script: "az webapp deployment list-publishing-profiles -g $resourceGroup -n $webAppName", returnStdout: true
-      def ftpProfile = getFtpPublishProfile pubProfilesJson
-      // upload package
-      sh "curl -T target/calculator-1.0.war $ftpProfile.url/webapps/ROOT.war -u '$ftpProfile.username:$ftpProfile.password'"
-      // log out
-      sh 'az logout'
+    }
+
+    stage('Deploy to Azure Web App') {
+      steps {
+        withCredentials([usernamePassword(
+          credentialsId: 'AzureServicePrincipal',
+          usernameVariable: 'AZURE_CLIENT_ID',
+          passwordVariable: 'AZURE_CLIENT_SECRET'
+        )]) {
+          sh '''
+            set -e
+            echo "Azure CLI version:" && az version
+
+            az login --service-principal \
+              -u "$AZURE_CLIENT_ID" \
+              -p "$AZURE_CLIENT_SECRET" \
+              --tenant "$AZURE_TENANT_ID"
+
+            az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
+            az webapp deploy \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$WEBAPP_NAME" \
+              --src-path target/calculator-1.0.war \
+              --type war
+
+            echo "✅ 部署成功： https://$WEBAPP_NAME.azurewebsites.net"
+          '''
+        }
+      }
     }
   }
 }
