@@ -7,21 +7,35 @@
   <artifactId>calculator</artifactId>
   <version>1.0</version>
   <packaging>war</packaging>
+
+  <properties>
+      <maven.compiler.source>11</maven.compiler.source>
+      <maven.compiler.target>11</maven.compiler.target>
+      <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
   <build>
     <plugins>
+
+      <!-- ✅ 更新到兼容 JDK 11 的 maven-compiler-plugin -->
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>2.3.2</version>
+        <version>3.11.0</version>
         <configuration>
           <source>11</source>
           <target>11</target>
         </configuration>
-      </plugin>    
+      </plugin>
+
+      <!-- ✅ 关键：必须升级 maven-war-plugin，否则报 WarMojo 错误 -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-war-plugin</artifactId>
-        <version>2.1.1</version>
+        <version>3.4.0</version>
       </plugin>
+
+      <!-- ✅ Jetty 可以保留，不影响 Azure 部署 -->
       <plugin>
         <groupId>org.eclipse.jetty</groupId>
         <artifactId>jetty-maven-plugin</artifactId>
@@ -35,33 +49,14 @@
           <stopKey>stopit</stopKey>
           <stopWait>10</stopWait>
           <httpConnector>
-            <!--<port>8080</port>-->
             <idleTimeout>60000</idleTimeout>
           </httpConnector>
         </configuration>
-        <executions>
-          <execution>
-            <id>start-jetty</id>
-            <phase>pre-integration-test</phase>
-            <goals>
-              <goal>start</goal>
-            </goals>
-            <configuration>
-              <scanIntervalSeconds>0</scanIntervalSeconds>
-              <daemon>true</daemon>
-            </configuration>
-          </execution>
-          <execution>
-            <id>stop-jetty</id>
-            <phase>post-integration-test</phase>
-            <goals>
-              <goal>stop</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
+
     </plugins>
   </build>
+
   <dependencies>
     <dependency>
       <groupId>org.glassfish.jersey.containers</groupId>
